@@ -72,6 +72,8 @@ function privateReply(ctx: Context, msg: any = {}) {
  * @returns The extracted ticket ID or null if not found.
  */
 function extractTicketId(replyText: string): string | null {
+  const compact = replyText.match(/#T(\d+)/);
+  if (compact) return compact[1];
   const { language } = cache.config;
   let match = replyText.match(new RegExp(`#T(.*) ${escapeRegex(language.from)}`));
   if (!match) {
@@ -109,6 +111,8 @@ function extractSupporteeId(replyText: string): string | null {
  * @returns The extracted name or null if not found.
  */
 function extractName(replyText: string): string | null {
+  const pipeMatch = replyText.match(/#T\d+\s*\|\s*(.+?)\s*\|/);
+  if (pipeMatch) return pipeMatch[1].trim();
   const { language } = cache.config;
   const match = replyText.match(new RegExp(`${escapeRegex(language.from)} (.*) ${escapeRegex(language.language)}`));
   return match ? match[1].trim() : null;
@@ -292,4 +296,4 @@ async function chat(ctx: Context) {
   }
 }
 
-export { privateReply, chat, ticketMsg, extractTicketId, extractSupporteeId, findParentCategory, forwardReplyToParent };
+export { privateReply, chat, ticketMsg, extractTicketId, extractName, extractSupporteeId, findParentCategory, forwardReplyToParent };

@@ -56,9 +56,9 @@ function formatMessageAsTicket(
     tagsPrefix = `🏷️ ${ticketObj.tags.map((t: string) => `#${t}`).join(' ')}\n`;
   }
 
-  return `${priorityPrefix}${config.language.ticket} #T${ticket
+  return `${priorityPrefix}#T${ticket
     .toString()
-    .padStart(6, '0')} ${config.language.from} ${name} ${config.language.language}: ${ctx.message.from.language_code} ${ctx.session.groupTag}\n\n${assignPrefix}${tagsPrefix}${esc(
+    .padStart(6, '0')} | ${name} | ${ctx.message.from.language_code} ${ctx.session.groupTag}\n\n${assignPrefix}${tagsPrefix}${esc(
       ctx.message.text,
     )}\n\n${autoReplyInfo ? `*${autoReplyInfo}*` : ''}`;
 }

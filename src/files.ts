@@ -77,7 +77,7 @@ async function fileHandler(type: string, bot: Addon, ctx: Context) {
     return;
   }
 
-  let captionText = `${config.language.ticket} #T${(ticket.ticketId ?? ticket.id ?? 0)
+  let captionText = `#T${(ticket.ticketId ?? ticket.id ?? 0)
     .toString()
     .padStart(6, '0')} ${userInfo}\n${message.caption || ''}`;
   if (session.admin && userInfo === undefined) {
@@ -158,7 +158,8 @@ async function fileHandler(type: string, bot: Addon, ctx: Context) {
     : ''
     }`;
   if (session.admin && userInfo === undefined) {
-    const nameMatch = replyText.match(
+    const pipeMatch = replyText.match(/#T\d+\s*\|\s*(.+?)\s*\|/);
+    const nameMatch = pipeMatch || replyText.match(
       new RegExp(`${escapeRegex(config.language.from)} (.*) ${escapeRegex(config.language.language)}`)
     );
     if (!nameMatch) return;
@@ -207,7 +208,7 @@ async function forwardFile(ctx: Context): Promise<string | undefined> {
 function forwardHandler(ctx: Context): string | undefined {
   if (ctx.chat.type === 'private') {
     cache.userId = ctx.message.from.id;
-    const userInfo = `${cache.config.language.from} ${ctx.message.from.first_name} (${ctx.message.from.id}) ${cache.config.language.language}: ${ctx.message.from.language_code}\n\n`;
+    const userInfo = `| ${ctx.message.from.first_name} (${ctx.message.from.id}) | ${ctx.message.from.language_code}\n\n`;
     return userInfo;
   } else {
     return undefined;

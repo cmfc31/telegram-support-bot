@@ -7,22 +7,8 @@ import * as log from './logger'
 import * as team from './team';
 import * as analytics from './analytics';
 import * as workflows from './workflows';
-import { extractSupporteeId } from './staff';
+import { extractSupporteeId, extractTicketId } from './staff';
 import * as webhooks from './webhooks';
-
-const escapeRegex = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-/**
- * Extracts ticket ID from the reply text.
- */
-const extractTicketId = (replyText: string): string | undefined => {
-  const { language } = cache.config;
-  let match = replyText.match(new RegExp(`#T(.*) ${escapeRegex(language.from)}`));
-  if (!match) {
-    match = replyText.match(new RegExp(`#T(.*)\\n${escapeRegex(language.from)}`));
-  }
-  return match ? match[1] : undefined;
-};
 
 /**
  * Attempts to find a ticket from a replied message using multiple fallback strategies:

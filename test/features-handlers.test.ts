@@ -196,7 +196,7 @@ describe('edited messages (#147)', () => {
     expect(mockSendMessage).toHaveBeenCalledWith(
       '-100123',
       'telegram',
-      'Ticket #T000012 from [Alice](tg://user?id=42) edited their message:\n\ncorrected text',
+      '#T000012 | [Alice](tg://user?id=42) | edited their message:\n\ncorrected text',
     );
     expect(mockAddTicketMessage).toHaveBeenCalledWith(12, 'user', '42', '[edited their message] corrected text');
   });
@@ -209,7 +209,7 @@ describe('edited messages (#147)', () => {
     await handleEditedMessage(ctx);
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
     expect(mockSendMessage.mock.calls[1][0]).toBe('-100555');
-    expect(mockSendMessage.mock.calls[0][2]).toContain('from Alice (42) edited');
+    expect(mockSendMessage.mock.calls[0][2]).toContain('#T000012 | Alice (42) | edited');
     expect(mockSendMessage.mock.calls[0][2]).not.toContain('tg://user');
   });
 
@@ -370,7 +370,7 @@ describe('stickers (#107)', () => {
     await files.fileHandler('sticker', bot, makeCtx());
 
     expect(bot.sendSticker).toHaveBeenCalledWith('-100123', 'file-1');
-    expect(mockSendMessage).toHaveBeenCalledWith('-100123', 'telegram', expect.stringContaining('Ticket #T000003 from Alice'));
+    expect(mockSendMessage).toHaveBeenCalledWith('-100123', 'telegram', expect.stringContaining('#T000003 | Alice (42) | de'));
     expect(mockAddIdAndName).toHaveBeenCalledWith(3, '501', 'Alice');
   });
 

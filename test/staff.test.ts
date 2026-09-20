@@ -179,4 +179,20 @@ describe('Staff Module', () => {
       expect(result).not.toContain('John');
     });
   });
+
+  describe('extractTicketId and extractName', () => {
+    beforeEach(() => {
+      (cache as any).config.language = {
+        from: 'from',
+        language: 'Language',
+      };
+    });
+
+    it('parses the compact prefix and the legacy verbose one', () => {
+      expect(staff.extractTicketId('#T000003 | Martin (8305999662) | en')).toBe('000003');
+      expect(staff.extractTicketId('Ticket #T000012 from Alice Language: en')).toBe('000012');
+      expect(staff.extractName('#T000003 | Martin (8305999662) | en')).toBe('Martin (8305999662)');
+      expect(staff.extractName('Ticket #T000012 from Alice Language: de')).toBe('Alice');
+    });
+  });
 });

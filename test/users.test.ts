@@ -182,7 +182,7 @@ describe('Users Module', () => {
       expect(mockSendMessage).toHaveBeenCalledWith(
         'staff123',
         'telegram',
-        expect.stringContaining('#T001001')
+        expect.stringContaining('#T001001 | [John](tg://user?id=user123) | en')
       );
     });
 

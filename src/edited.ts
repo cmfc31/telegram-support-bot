@@ -144,8 +144,7 @@ export async function handleEditedMessage(ctx: Context): Promise<boolean> {
     const paddedId = ticket.ticketId.toString().padStart(6, '0');
     const name = displayName(from.first_name || 'User', userId);
     const text =
-      `${config.language.ticket} #T${paddedId} ${config.language.from} ${name} ` +
-      `${config.language.editedMessage}:\n\n${esc(body)}`;
+      `#T${paddedId} | ${name} | ${config.language.editedMessage}:\n\n${esc(body)}`;
 
     log.info(`Forwarding edit for ticket #T${paddedId}: ${body}`);
     await middleware.sendMessage(config.staffchat_id, config.staffchat_type, text).catch(log.error);
