@@ -313,6 +313,14 @@ describe('ticket_per_message (#172)', () => {
     expect(mockAdd).not.toHaveBeenCalled();
     expect(mockAddNewTicket).not.toHaveBeenCalled();
   });
+
+  it('keeps the same ticket id after /clear or /close', async () => {
+    mockGetTicketByUserId.mockResolvedValue({ ticketId: 3, status: 'closed' });
+    const ticket = await text.ticketHandler(bot, makeCtx());
+    expect(mockAddNewTicket).not.toHaveBeenCalled();
+    expect(mockAdd).not.toHaveBeenCalled();
+    expect(ticket?.ticketId).toBe(3);
+  });
 });
 
 // ---------------------------------------------------------------- #79

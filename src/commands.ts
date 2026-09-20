@@ -25,7 +25,9 @@ async function resolveTicketFromReply(
   if (extractedId) {
     const ticketId = parseInt(extractedId, 10);
     if (ticketId) {
-      const ticket = await db.getTicketById(ticketId, category);
+      const ticket =
+        (await db.getTicketById(ticketId, category)) ||
+        (await db.getByTicketId(String(ticketId)));
       if (ticket) return { ticket, ticketIdStr: extractedId };
     }
   }
@@ -158,59 +160,34 @@ const closeCommand = async (ctx: Context): Promise<void> => {
     }
     return;
   }
-  const groups: string[] = [];
-  const { categories, language } = cache.config;
-
-  if (categories) {
-    categories.forEach(category => {
-      if (!category.subgroups || category.subgroups.length === 0) {
-        if (category.group_id === ctx.chat.id) groups.push(category.name);
-      } else {
-        category.subgroups.forEach((sub: { group_id: unknown; name: string }) => {
-          if (sub.group_id === ctx.chat.id) groups.push(sub.name);
-        });
-      }
-    });
-  }
+  const { language } = cache.config;
 
   // Only process if the reply is to a bot message
-  if (!ctx.message.reply_to_message.from.is_bot) return;
+  if (!ctx.message.reply_to_message?.from?.is_bot) return;
   const replyText = ctx.message.reply_to_message.text || ctx.message.reply_to_message.caption;
   if (!replyText) return;
 
-  const resolved = await resolveTicketFromReply(replyText, null);
+  const resolved = await resolveTicketFromReply(replyText, ctx.session.groupCategory);
   if (!resolved) {
     middleware.reply(ctx, 'Could not find ticket in the replied message.');
     return;
   }
   const { ticket, ticketIdStr } = resolved;
-
-  const tickets = await db.open(groups);
-  let userId: string | null = null;
-  for (const t of tickets) {
-    if ((t.ticketId ?? 0).toString().padStart(6, '0') === ticketIdStr.padStart(6, '0')) {
-      await db.add(t.userid, 'closed', t.category ?? '', ctx.messenger);
-    }
-    userId = t.userid;
-  }
-
-  // Also close directly if not found in open list (ticket might already be closed)
-  if (!userId) {
-    await db.add(ticket.userid, 'closed', ticket.category ?? '', ctx.messenger);
-    userId = ticket.userid;
-  }
+  const userId = ticket.userid;
   const paddedTicket = ticketIdStr.toString().padStart(6, '0');
+
+  await db.add(userId, 'closed', ticket.category ?? '', ctx.messenger);
+  await db.setClosedAt(ticket.ticketId);
+
   await middleware.reply(ctx, `${language.ticket} #T${paddedTicket} ${language.closed}`);
-  if (userId) {
-    await middleware.sendMessage(
-      userId,
-      ctx.messenger,
-      `${language.ticket} #T${paddedTicket} ${language.closed}\n\n${language.ticketClosed}`,
-    ).catch(log.error);
-    delete cache.ticketIDs[userId];
-    delete cache.ticketStatus[userId];
-    delete cache.ticketSent[userId];
-  }
+  await middleware.sendMessage(
+    userId,
+    ctx.messenger,
+    `${language.ticket} #T${paddedTicket} ${language.closed}\n\n${language.ticketClosed}`,
+  ).catch(log.error);
+  delete cache.ticketIDs[userId];
+  delete cache.ticketStatus[userId];
+  delete cache.ticketSent[userId];
 };
 
 /**

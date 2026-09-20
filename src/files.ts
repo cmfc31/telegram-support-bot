@@ -177,7 +177,7 @@ async function fileHandler(type: string, bot: Addon, ctx: Context) {
 async function forwardFile(ctx: Context): Promise<string | undefined> {
   const ticket = await db.getTicketByUserId(ctx.message.from.id.toString(), ctx.session.groupCategory);
   let ok = false;
-  if (!ticket || !ticket.status || ticket.status === 'closed') {
+  if (!ticket || !ticket.status) {
     await db.add(ctx.message.from.id.toString(), 'open', null, ctx.messenger);
     ok = true;
   }

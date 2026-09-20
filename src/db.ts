@@ -214,10 +214,13 @@ export const addNewTicket = async (
 };
 
 export async function getByTicketId(
-  ticketId: string,
+  ticketId: string | number,
 ): Promise<ISupportee | null> {
   try {
-    const query = { $or: [{ ticketId }] };
+    const numericId = typeof ticketId === 'number' ? ticketId : parseInt(ticketId, 10);
+    const query = Number.isNaN(numericId)
+      ? { $or: [{ ticketId }] }
+      : { ticketId: numericId };
     return await Supportee.findOne(query) as ISupportee | null;
   } catch (err) {
     log.error('DB getByTicketId error:', err);

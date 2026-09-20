@@ -316,6 +316,40 @@ describe('user /close (#112)', () => {
   });
 });
 
+describe('staff /close', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('closes the ticket from the replied staff message', async () => {
+    mockGetByTicketId.mockResolvedValue({
+      ticketId: 3,
+      userid: '8305999662',
+      status: 'open',
+      category: null,
+      messenger: 'telegram',
+    });
+    const ctx = makeCtx(true);
+    ctx.chat = { id: '-100123', type: 'supergroup' } as Context['chat'];
+    ctx.message.reply_to_message = {
+      from: { is_bot: true },
+      text: '#T000003 | Martin (8305999662) | en',
+      caption: '',
+    };
+
+    await commands.closeCommand(ctx);
+
+    expect(mockAdd).toHaveBeenCalledWith('8305999662', 'closed', '', 'telegram');
+    expect(mockSetClosedAt).toHaveBeenCalledWith(3);
+    expect(mockReply).toHaveBeenCalledWith(expect.anything(), 'Ticket #T000003 closed');
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      '8305999662',
+      'telegram',
+      'Ticket #T000003 closed\n\nYour ticket has been closed.',
+    );
+  });
+});
+
 describe('custom user commands (#84)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
