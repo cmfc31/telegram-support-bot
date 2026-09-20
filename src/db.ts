@@ -36,6 +36,8 @@ export interface ISupportee extends mongoose.Document {
   // Analytics fields
   first_response_at: Date | null;
   closed_at: Date | null;
+  staff_reply_map?: Record<string, string>;
+  last_user_message_id?: string | null;
 }
 
 export const SupporteeSchema = new mongoose.Schema<ISupportee>({
@@ -54,6 +56,8 @@ export const SupporteeSchema = new mongoose.Schema<ISupportee>({
   sentiment_score: { type: Number, default: null },
   first_response_at: { type: Date, default: null },
   closed_at: { type: Date, default: null },
+  staff_reply_map: { type: mongoose.Schema.Types.Mixed, default: {} },
+  last_user_message_id: { type: String, default: null },
 });
 
 const Supportee = mongoose.model(getCollectionName(), SupporteeSchema);
@@ -272,6 +276,40 @@ export const addIdAndName = async (
     upsert: true,
   });
 };
+
+export async function setStaffReplyMapping(
+  ticketId: string | number,
+  staffMessageId: string | number,
+  userMessageId: string | number,
+) {
+  if (!ticketId || !staffMessageId || !userMessageId) return null;
+  const key = String(staffMessageId);
+  try {
+    return await Supportee.findOneAndUpdate(
+      { ticketId },
+      {
+        $set: {
+          [`staff_reply_map.${key}`]: String(userMessageId),
+          last_user_message_id: String(userMessageId),
+        },
+      },
+      { new: true },
+    );
+  } catch (err) {
+    log.error('DB setStaffReplyMapping error:', err);
+    return null;
+  }
+}
+
+export function getStaffReplyUserMessageId(
+  ticket: ISupportee | null | undefined,
+  staffMessageId?: string | number | null,
+): string | null {
+  if (!ticket) return null;
+  const map = ticket.staff_reply_map || {};
+  const mapped = staffMessageId != null ? map[String(staffMessageId)] : null;
+  return mapped || ticket.last_user_message_id || null;
+}
 
 export const add = async (
   userid: string | number,

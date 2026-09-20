@@ -102,6 +102,34 @@ class TelegramAddon implements Addon {
     return response.message_id.toString();
   }
 
+  async editMessageText(
+    chatId: string | number,
+    messageId: string | number,
+    text: string,
+    options: Record<string, unknown> = {},
+  ): Promise<boolean> {
+    try {
+      const validModes = ['HTML', 'MarkdownV2'];
+      if (options?.parse_mode === 'Markdown') {
+        options.parse_mode = 'HTML';
+      } else if (options?.parse_mode && !validModes.includes(options.parse_mode as string)) {
+        delete options.parse_mode;
+      }
+      await this.bot.api.editMessageText(
+        chatId.toString(),
+        Number(messageId),
+        text,
+        options as never,
+      );
+      return true;
+    } catch (err) {
+      const description = (err as { description?: string })?.description || String(err);
+      if (description.includes('message is not modified')) return true;
+      log.error('Failed to edit message:', err);
+      return false;
+    }
+  }
+
   async sendDocument(
     chatId: string | number,
     document: unknown,
@@ -176,14 +204,21 @@ class TelegramAddon implements Addon {
           `_Dev mode is on: You might notice some delay in messages, no replies or other errors._`
         );
       }
-      permissions.checkPermissions(typedCtx, next, cache.config);
+      await permissions.checkPermissions(typedCtx, next, cache.config);
     });
 
     const keys = inline.initInline(this);
     registerCommonHandlers(this, keys);
 
     // Start the Bot.
-    this.bot.start();
+    this.bot.start({
+      allowed_updates: [
+        'message',
+        'edited_message',
+        'callback_query',
+        'inline_query',
+      ],
+    });
   }
 }
 

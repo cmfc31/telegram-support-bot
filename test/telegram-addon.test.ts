@@ -5,6 +5,7 @@ const mockApi = {
   sendDocument: jest.fn().mockResolvedValue({ message_id: 7 }),
   sendVideo: jest.fn().mockResolvedValue({ message_id: 8 }),
   sendSticker: jest.fn().mockResolvedValue({ message_id: 9 }),
+  editMessageText: jest.fn().mockResolvedValue(true),
   config: { use: jest.fn() },
 };
 
@@ -90,5 +91,13 @@ describe('TelegramAddon', () => {
   it('swallows sticker errors', async () => {
     mockApi.sendSticker.mockRejectedValueOnce(new Error('boom'));
     await expect(addon.sendSticker('555', 'file-1')).resolves.toBeNull();
+  });
+
+  it('edits a message in place and treats unchanged text as success', async () => {
+    await expect(addon.editMessageText('555', 9, 'hi', { parse_mode: 'HTML' })).resolves.toBe(true);
+    expect(mockApi.editMessageText).toHaveBeenCalledWith('555', 9, 'hi', { parse_mode: 'HTML' });
+
+    mockApi.editMessageText.mockRejectedValueOnce({ description: 'Bad Request: message is not modified' });
+    await expect(addon.editMessageText('555', 9, 'hi')).resolves.toBe(true);
   });
 });

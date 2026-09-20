@@ -29,6 +29,10 @@ function formatMessageAsTicket(
   if (config.anonymous_tickets || config.staffchat_parse_mode === ParseMode.PLAINTEXT) {
     name = ctx.message.from.first_name;
   }
+  const telegramId = userId || ctx.message.from.id;
+  if (telegramId && !String(name).includes(String(telegramId))) {
+    name = `${name} (${telegramId})`;
+  }
 
   // Priority indicator prefix
   const priorityIcons: Record<string, string> = { urgent: '🔴', high: '🟠', normal: '🟡', low: '⚪' };

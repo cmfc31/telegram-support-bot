@@ -96,6 +96,9 @@ function extractSupporteeId(replyText: string): string | null {
   const mdMatch = replyText.match(/\[.*?\]\(tg:\/\/user\?id=(\d+)\)/);
   if (mdMatch) return mdMatch[1];
 
+  const parenMatch = replyText.match(/\((\d{5,})\)/);
+  if (parenMatch) return parenMatch[1];
+
   return null;
 }
 
@@ -246,14 +249,24 @@ async function chat(ctx: Context) {
         replyContent = ticketMsg(name, { text: translated, from: ctx.message.from });
       }
     }
-    middleware.sendMessage(ticket.userid, ticket.messenger, replyContent).catch(log.error);
+    try {
+      const userMsgId = await middleware.sendMessage(ticket.userid, ticket.messenger, replyContent);
+      if (userMsgId && ctx.message?.message_id) {
+        await db.setStaffReplyMapping(ticketId, ctx.message.message_id, userMsgId);
+      }
+    } catch (err) {
+      log.error(err);
+    }
   }
 
   const esc = middleware.strictEscape;
+  const sentLabel = name && ticket.userid && !String(name).includes(String(ticket.userid))
+    ? `${esc(name)} (${ticket.userid})`
+    : esc(name);
   middleware.sendMessage(
     ctx.chat.id,
     cache.config.staffchat_type,
-    `${cache.config.language.msg_sent} ${esc(name)}`,
+    `${cache.config.language.msg_sent} ${sentLabel}`,
   ).catch(log.error);
   log.info(`Answer by @${ctx.from.username ?? '-'} (${ctx.from.id}) to ${ticket.userid} (${name}) on #T${ticketId}: ${staffMessage}`);
   delete cache.ticketSent[ticketId];
@@ -279,4 +292,4 @@ async function chat(ctx: Context) {
   }
 }
 
-export { privateReply, chat, ticketMsg, extractSupporteeId, findParentCategory, forwardReplyToParent };
+export { privateReply, chat, ticketMsg, extractTicketId, extractSupporteeId, findParentCategory, forwardReplyToParent };

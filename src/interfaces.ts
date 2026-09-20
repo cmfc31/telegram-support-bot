@@ -372,6 +372,7 @@ export class Context {
       from: { is_bot: boolean };
       text: string;
       caption: string;
+      message_id?: number;
     };
     external_reply?: {
       message_id: number,
@@ -426,6 +427,16 @@ export interface Addon {
    * @param options Optional parameters.
    */
   sendSticker?(chatId: string | number, sticker: unknown, options?: Record<string, unknown>): Promise<void> | Promise<string | null>;
+
+  /**
+   * Edits a previously sent text message (Telegram).
+   */
+  editMessageText?(
+    chatId: string | number,
+    messageId: string | number,
+    text: string,
+    options?: Record<string, unknown>,
+  ): Promise<boolean>;
 
   /**
    * Sends a document.

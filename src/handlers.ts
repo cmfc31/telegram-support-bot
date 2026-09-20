@@ -159,9 +159,7 @@ export function registerCommonHandlers(addon: Addon, keys?: string[][]) {
   if (cache.config.forward_stickers && addon.sendSticker) {
     addon.on([':sticker'], (ctx: Context) => files.fileHandler('sticker', addon, ctx));
   }
-  if (cache.config.forward_edited_messages) {
-    addon.on('edited_message', (ctx: Context) => edited.handleEditedMessage(ctx));
-  }
+  addon.on('edited_message', (ctx: Context) => edited.handleEditedMessage(ctx));
 
   // Register generic text handlers.
   addon.hears(cache.config.language.back, (ctx: Context) => {

@@ -84,7 +84,7 @@ async function fileHandler(type: string, bot: Addon, ctx: Context) {
     receiverId = ticket.userid;
     captionText = message.caption || '';
   }
-  if (session.modeData?.userid != null) {
+  if (session.modeData?.userid) {
     receiverId = session.modeData.userid;
     isPrivate = true;
   }
@@ -135,13 +135,14 @@ async function fileHandler(type: string, bot: Addon, ctx: Context) {
     case 'sticker': {
       // Stickers cannot carry a caption: send the sticker, then the ticket header as text (#107)
       if (!bot.sendSticker) return;
-      messageId = (await bot.sendSticker(receiverId, fileId)) as string | null;
+      const stickerFileId = message.sticker?.file_id || fileId;
+      messageId = (await bot.sendSticker(receiverId, stickerFileId)) as string | null;
       const headerMessenger = session.admin && userInfo === undefined ? ticket.messenger : config.staffchat_type;
       if (captionText.trim()) {
         sendMessage(receiverId, headerMessenger, captionText).catch(log.error);
       }
       if (shouldForwardToGroup) {
-        Promise.resolve(bot.sendSticker(session.group, fileId)).catch(log.error);
+        Promise.resolve(bot.sendSticker(session.group, stickerFileId)).catch(log.error);
       }
       break;
     }
@@ -206,7 +207,7 @@ async function forwardFile(ctx: Context): Promise<string | undefined> {
 function forwardHandler(ctx: Context): string | undefined {
   if (ctx.chat.type === 'private') {
     cache.userId = ctx.message.from.id;
-    const userInfo = `${cache.config.language.from} ${ctx.message.from.first_name} ${cache.config.language.language}: ${ctx.message.from.language_code}\n\n`;
+    const userInfo = `${cache.config.language.from} ${ctx.message.from.first_name} (${ctx.message.from.id}) ${cache.config.language.language}: ${ctx.message.from.language_code}\n\n`;
     return userInfo;
   } else {
     return undefined;

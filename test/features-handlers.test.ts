@@ -10,9 +10,13 @@ const mockAddTicketMessage = jest.fn().mockResolvedValue(undefined);
 const mockAddIdAndName = jest.fn().mockResolvedValue(undefined);
 const mockUsersChat = jest.fn().mockResolvedValue(undefined);
 
+const mockEditMessage = jest.fn().mockResolvedValue(true);
+const mockGetStaffReplyUserMessageId = jest.fn();
+
 jest.mock('../src/middleware', () => ({
   reply: mockReply,
   sendMessage: mockSendMessage,
+  editMessage: mockEditMessage,
   strictEscape: jest.fn((str: string) => str),
   buildInlineKeyboard: jest.fn().mockReturnValue({}),
 }));
@@ -25,6 +29,8 @@ jest.mock('../src/db', () => ({
   addIdAndName: mockAddIdAndName,
   getTicketByInternalId: jest.fn().mockResolvedValue(null),
   getTicketById: jest.fn().mockResolvedValue(null),
+  getByTicketId: jest.fn().mockResolvedValue(null),
+  getStaffReplyUserMessageId: mockGetStaffReplyUserMessageId,
   checkBan: jest.fn().mockResolvedValue(null),
   recordAnalyticsEvent: jest.fn().mockResolvedValue(undefined),
   setFirstResponseAt: jest.fn().mockResolvedValue(undefined),
@@ -203,11 +209,11 @@ describe('edited messages (#147)', () => {
     await handleEditedMessage(ctx);
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
     expect(mockSendMessage.mock.calls[1][0]).toBe('-100555');
-    expect(mockSendMessage.mock.calls[0][2]).toContain('from Alice edited');
+    expect(mockSendMessage.mock.calls[0][2]).toContain('from Alice (42) edited');
     expect(mockSendMessage.mock.calls[0][2]).not.toContain('tg://user');
   });
 
-  it('is skipped when disabled, for staff, for closed tickets and without text', async () => {
+  it('is skipped when disabled, for private staff sessions, banned tickets and without text', async () => {
     mockGetTicketByUserId.mockResolvedValue({ ticketId: 12, status: 'open' });
     cache.config.forward_edited_messages = false;
     expect(await handleEditedMessage(editedCtx())).toBe(false);
@@ -217,12 +223,49 @@ describe('edited messages (#147)', () => {
     staffCtx.session.admin = true;
     expect(await handleEditedMessage(staffCtx)).toBe(false);
 
-    mockGetTicketByUserId.mockResolvedValue({ ticketId: 12, status: 'closed' });
+    mockGetTicketByUserId.mockResolvedValue({ ticketId: 12, status: 'banned' });
     expect(await handleEditedMessage(editedCtx())).toBe(false);
 
     mockGetTicketByUserId.mockResolvedValue({ ticketId: 12, status: 'open' });
     expect(await handleEditedMessage(editedCtx({ editedMessage: { from: { id: '42' } } }))).toBe(false);
     expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('still forwards user edits after the ticket is closed', async () => {
+    mockGetTicketByUserId.mockResolvedValue({ ticketId: 12, status: 'closed', messenger: 'telegram' });
+    expect(await handleEditedMessage(editedCtx())).toBe(true);
+    expect(mockSendMessage).toHaveBeenCalled();
+  });
+
+  it('updates the user message in place when staff edits a mapped reply', async () => {
+    mockGetStaffReplyUserMessageId.mockReturnValue('99');
+    const ctx = editedCtx({
+      chat: { id: '-100123', type: 'supergroup' },
+      from: { id: '9', username: 'staff' },
+      editedMessage: {
+        message_id: 11,
+        text: 'updated reply',
+        from: { id: '9', first_name: 'Staff' },
+        chat: { id: '-100123', type: 'supergroup' },
+        reply_to_message: { text: 'Ticket #T000012 from Alice', message_id: 5 },
+      },
+    });
+    const { getTicketById } = jest.requireMock('../src/db') as {
+      getTicketById: jest.Mock;
+    };
+    getTicketById.mockResolvedValueOnce({
+      ticketId: 12,
+      userid: '42',
+      name: 'Alice',
+      messenger: 'telegram',
+    });
+
+    expect(await handleEditedMessage(ctx)).toBe(true);
+    expect(mockEditMessage).toHaveBeenCalledWith(
+      '42',
+      '99',
+      expect.stringContaining('updated reply'),
+    );
   });
 });
 

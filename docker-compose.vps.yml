@@ -1,0 +1,35 @@
+# Telegram-only Compose for VPS (no Signal / mongo-express).
+# Build from this fork, then mount config/ with your secrets (never commit config.yaml).
+#
+#   docker compose -f docker-compose.vps.yml up -d --build
+
+services:
+  supportbot:
+    build: .
+    image: telegram-support-bot:local
+    container_name: telegram-support-bot
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    volumes:
+      - ./config:/bot/config
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/support
+    networks:
+      - tsb
+
+  mongodb:
+    image: mongo:8.0
+    container_name: telegram-support-bot-mongo
+    restart: unless-stopped
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - tsb
+
+volumes:
+  mongodb_data:
+
+networks:
+  tsb:
+    driver: bridge

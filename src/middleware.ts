@@ -92,6 +92,21 @@ async function sendMessage (
 };
 
 /**
+ * Edits a previously sent Telegram message in place.
+ */
+async function editMessage(
+  chatId: string | number,
+  messageId: string | number,
+  msg: string,
+  extra: any = { parse_mode: cache.config.parse_mode },
+): Promise<boolean> {
+  const cleanedMsg = String(msg).replace(/ {2,}/g, ' ');
+  const addon = TelegramAddon.getInstance();
+  if (!addon.editMessageText) return false;
+  return await addon.editMessageText(chatId, messageId, cleanedMsg, extra);
+}
+
+/**
  * Replies to a message within the given context.
  *
  * @param ctx - The message context.
@@ -108,4 +123,4 @@ const reply = async (
   await sendMessage(chatId, ctx.messenger, msgText, extra);
 };
 
-export { buildInlineKeyboard, strictEscape, sendMessage, reply };
+export { buildInlineKeyboard, strictEscape, sendMessage, editMessage, reply };
