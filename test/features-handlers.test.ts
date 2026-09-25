@@ -4,6 +4,7 @@
 const mockReply = jest.fn().mockResolvedValue(undefined);
 const mockSendMessage = jest.fn().mockResolvedValue(undefined);
 const mockGetTicketByUserId = jest.fn();
+const mockGetTicketById = jest.fn();
 const mockAdd = jest.fn().mockResolvedValue(0);
 const mockAddNewTicket = jest.fn().mockResolvedValue(2);
 const mockAddTicketMessage = jest.fn().mockResolvedValue(undefined);
@@ -28,7 +29,7 @@ jest.mock('../src/db', () => ({
   addTicketMessage: mockAddTicketMessage,
   addIdAndName: mockAddIdAndName,
   getTicketByInternalId: jest.fn().mockResolvedValue(null),
-  getTicketById: jest.fn().mockResolvedValue(null),
+  getTicketById: mockGetTicketById,
   getByTicketId: jest.fn().mockResolvedValue(null),
   getStaffReplyUserMessageId: mockGetStaffReplyUserMessageId,
   checkBan: jest.fn().mockResolvedValue(null),
@@ -386,6 +387,67 @@ describe('stickers (#107)', () => {
     mockGetTicketByUserId.mockResolvedValue({ ticketId: 3, userid: '42', status: 'open', messenger: 'telegram' });
     await files.fileHandler('sticker', {} as Addon, makeCtx());
     expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('sends a staff sticker reply only to the ticket that was replied to', async () => {
+    mockGetTicketById.mockResolvedValue({
+      ticketId: 12,
+      userid: '999',
+      name: 'Bob',
+      status: 'open',
+      messenger: 'telegram',
+    });
+    const bot = { sendSticker: jest.fn().mockResolvedValue('501'), sendPhoto: jest.fn().mockResolvedValue('502') } as unknown as Addon;
+    const ctx = makeCtx({
+      chat: { id: '-100123', type: 'supergroup' },
+      from: { id: '1', username: 'staff' },
+      message: {
+        text: '',
+        message_id: 20,
+        from: { id: '1', first_name: 'Staff', username: 'staff', is_bot: false, language_code: 'en' },
+        chat: { id: '-100123', type: 'supergroup' },
+        reply_to_message: {
+          from: { is_bot: true },
+          text: '#T000012 | Bob (999) | en',
+          caption: '',
+          message_id: 5,
+        },
+        caption: '',
+        sticker: { file_id: 'stk-1' },
+      },
+    });
+    ctx.session.admin = true;
+    ctx.session.mode = 'private_reply';
+    ctx.session.modeData = { ticketid: '3', userid: '42', name: 'Alice', category: '' } as Context['session']['modeData'];
+    ctx.session.group = '-100OTHER';
+
+    await files.fileHandler('sticker', bot, ctx);
+
+    expect(bot.sendSticker).toHaveBeenCalledTimes(1);
+    expect(bot.sendSticker).toHaveBeenCalledWith('999', 'stk-1');
+  });
+
+  it('does not deliver staff media when the replied ticket cannot be resolved', async () => {
+    const bot = { sendPhoto: jest.fn().mockResolvedValue('502') } as unknown as Addon;
+    const ctx = makeCtx({
+      chat: { id: '-100123', type: 'supergroup' },
+      from: { id: '1', username: 'staff' },
+      message: {
+        text: '',
+        message_id: 21,
+        from: { id: '1', first_name: 'Staff', username: 'staff', is_bot: false, language_code: 'en' },
+        chat: { id: '-100123', type: 'supergroup' },
+        reply_to_message: { from: { is_bot: true }, text: 'hello', caption: '', message_id: 8 },
+        caption: '',
+      },
+    });
+    ctx.session.admin = true;
+    ctx.session.modeData = { ticketid: '3', userid: '42', name: 'Alice', category: '' } as Context['session']['modeData'];
+
+    await files.fileHandler('photo', bot, ctx);
+
+    expect(bot.sendPhoto).not.toHaveBeenCalled();
+    expect(mockReply).toHaveBeenCalledWith(expect.anything(), 'closed');
   });
 });
 

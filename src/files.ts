@@ -1,8 +1,9 @@
 import * as db from './db';
 import cache from './cache';
 import { buildInlineKeyboard, reply, sendMessage } from './middleware';
-import { Addon, Context, ModeData } from './interfaces';
+import { Addon, Context } from './interfaces';
 import { ISupportee } from './db';
+import * as staff from './staff';
 import * as log from './logger'
 
 const escapeRegex = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -43,33 +44,79 @@ const replyMarkup = (ctx: Context): { html: string; inline_keyboard: Array<Array
  * @param bot - The bot addon instance.
  * @param ctx - The bot context.
  */
+/**
+ * Resolves the single ticket a staff media reply is aimed at.
+ * A reply never falls back to the sender, and never uses a leftover private-reply session.
+ */
+async function resolveStaffReplyTicket(ctx: Context): Promise<{ ticket: ISupportee; replyText: string } | null> {
+  const replyMsg = ctx.message?.reply_to_message;
+  if (!replyMsg) return null;
+  const replyText = replyMsg.text || replyMsg.caption || '';
+  const replyMessageId = ctx.message.external_reply?.message_id ?? replyMsg.message_id ?? null;
+
+  if (replyMessageId) {
+    const byInternal = await db.getTicketByInternalId(replyMessageId);
+    if (byInternal) return { ticket: byInternal, replyText };
+  }
+
+  if (replyText) {
+    const extractedId = staff.extractTicketId(replyText);
+    if (extractedId) {
+      const ticketId = parseInt(extractedId, 10);
+      if (ticketId) {
+        const byId =
+          (await db.getTicketById(ticketId, ctx.session.groupCategory)) ||
+          (await db.getByTicketId(String(ticketId)));
+        if (byId) return { ticket: byId, replyText };
+      }
+    }
+    const supporteeId = staff.extractSupporteeId(replyText);
+    if (supporteeId) {
+      const byUser = await db.getTicketByUserId(supporteeId, ctx.session.groupCategory);
+      if (byUser) return { ticket: byUser, replyText };
+    }
+  }
+
+  return null;
+}
+
 async function fileHandler(type: string, bot: Addon, ctx: Context) {
   const { message, session } = ctx;
   const { config } = cache;
-  let userid: string | null = null;
-  let replyText = '';
+  const isStaffChat = session.admin && ctx.chat.type !== 'private';
+  const staffReply = isStaffChat ? await resolveStaffReplyTicket(ctx) : null;
 
-  // If replying to a message and if the session is admin, extract ticket info
-  if (message && message.reply_to_message?.text && session.admin) {
-    replyText = message.reply_to_message.text || message.reply_to_message.caption;
-    if (!replyText) return;
-    const externalReplyId = message.external_reply?.message_id ?? null;
-    if (externalReplyId) {
-      const ticket = await db.getTicketByInternalId(externalReplyId);
-      userid = ticket?.userid ?? null;
+  // Staff replied to a ticket: deliver only to that ticket's user.
+  // Ignore modeData — a private-reply session must not redirect or duplicate the file.
+  if (isStaffChat && message?.reply_to_message) {
+    if (!staffReply?.ticket?.userid) {
+      reply(ctx, config.language.ticketClosedError);
+      return;
+    }
+  }
+
+  let userid: string | null = staffReply?.ticket.userid ?? null;
+  const replyText = staffReply?.replyText ?? '';
+
+  if (!userid) {
+    if (isStaffChat && session.mode === 'private_reply' && session.modeData?.userid) {
+      userid = String(session.modeData.userid);
+    } else if (!isStaffChat) {
+      userid = message.from.id;
     }
   }
   if (!userid) {
-    userid = message.from.id;
+    reply(ctx, config.language.ticketClosedError);
+    return;
   }
 
-  const userInfo = await forwardFile(ctx);
+  const userInfo = isStaffChat ? undefined : await forwardFile(ctx);
   let receiverId: string | number = config.staffchat_id;
   let isPrivate = false;
 
-  const ticket = await db.getTicketByUserId(userid.toString(), session.groupCategory);
+  const ticket = staffReply?.ticket ?? await db.getTicketByUserId(userid.toString(), session.groupCategory);
   if (!ticket) {
-    if (session.admin && userInfo === undefined) {
+    if (isStaffChat) {
       reply(ctx, config.language.ticketClosedError);
     } else {
       reply(ctx, config.language.textFirst);
@@ -80,11 +127,10 @@ async function fileHandler(type: string, bot: Addon, ctx: Context) {
   let captionText = `#T${(ticket.ticketId ?? ticket.id ?? 0)
     .toString()
     .padStart(6, '0')} ${userInfo}\n${message.caption || ''}`;
-  if (session.admin && userInfo === undefined) {
+  if (isStaffChat) {
     receiverId = ticket.userid;
     captionText = message.caption || '';
-  }
-  if (session.modeData?.userid) {
+  } else if (session.mode === 'private_reply' && session.modeData?.userid) {
     receiverId = session.modeData.userid;
     isPrivate = true;
   }
@@ -98,7 +144,9 @@ async function fileHandler(type: string, bot: Addon, ctx: Context) {
 
   // Send the file based on its type
   let messageId: string | null | undefined = undefined;
+  // Category-group copies are for a user's own upload. A staff reply stays with one user.
   const shouldForwardToGroup = (
+    !isStaffChat &&
     session.group !== '' &&
     session.group !== config.staffchat_id &&
     Object.keys(session.modeData).length > 0
@@ -157,13 +205,14 @@ async function fileHandler(type: string, bot: Addon, ctx: Context) {
     ? config.language.yourTicketId + ' #T' + (ticket.ticketId ?? ticket.id ?? 0).toString().padStart(6, '0')
     : ''
     }`;
-  if (session.admin && userInfo === undefined) {
+  if (isStaffChat) {
     const pipeMatch = replyText.match(/#T\d+\s*\|\s*(.+?)\s*\|/);
     const nameMatch = pipeMatch || replyText.match(
       new RegExp(`${escapeRegex(config.language.from)} (.*) ${escapeRegex(config.language.language)}`)
     );
-    if (!nameMatch) return;
-    confirmationMessage = `${config.language.file_sent} ${nameMatch[1]}`;
+    const label = ticket.name || nameMatch?.[1];
+    if (!label) return;
+    confirmationMessage = `${config.language.file_sent} ${label}`;
   }
   sendMessage(ctx.chat.id, ticket.messenger, confirmationMessage).catch(log.error);
 };
